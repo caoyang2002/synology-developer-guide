@@ -1,79 +1,123 @@
 # 前言
 
-# 群晖API开发初探
+## 系统要求
 
-群晖的DSM系统功能强大，又是私有化部署，是非常好的家庭共享存储或小型公司的小型存储方案。群晖的套件众多，比如PhotoStation、Moments、FileStation、DownloadStation、CloudSync、NoteStation等有很多的教程，但其实DSM系统的API功能也非常强大，这里初探一下使用方法。
+### 工具包要求
 
-事实上，群晖几乎各个套件都有完整的API的支持，但因为文档不够完整，参考资料也非常少，所以使用非常不便。参考官网开发专区 的FileStation API文档，可以了解到API开发的流程：
+1. 具有 root 权限的 64 位通用 Linux 环境（例如 Ubuntu 18.04 LTS）
+2. bash (>= 4.1.5)
+3. python (>= 2.7.3)
 
-获取API 信息：
+请不要在 Synology NAS 上安装工具包作为您的开发环境。NAS 专门用于存储，而不是用于通用开发目的。相反，您可以在 NAS 上安装 Docker 包，然后设置通用 linux 容器来安装工具包。
 
-```py
-import json
-import requests
-ret = requests.get('http://myds.com:port/webapi/query.cgi?api=SYNO.API.Info&version=1&method=query&query=all')
-ret = json.loads(ret)
-if ret['success']:
-  print(ret['data'])
-```
+### 运行时要求
 
-query参数如果是all，可以获取所有的API信息，也可以指定查询特定的一批API。比如：
+由于软件包是用于 DSM7 的，所以您应该拥有一台 DSM7 NAS。
 
-```py
-#注意NoteStation后的'.'，可以查出NoteStation下所有的API
-query_str = 'SYNO.API.Auth,SYNO.NoteStation.'
-```
+## 准备环境
 
-用户登录
+### 安装工具包
 
-```py
-import json
-import requests
-ret = requests.get('http://myds.com:port/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=login&account=admin&passwd=12345&session=FileStation&format=sid')
-ret = json.loads(ret)
-if ret['success']:
-  print(ret['data'])
-```
+#### 工具包安装
 
-如果登录成功，可以获得sid，在后续的所有API调用上一定要附带参数_sid。
-
-调用API
-
-```py
-import json
-import requests
-ret = requests.get('http://myds.com:portGET /webapi/entry.cgi?api=SYNO.NoteStation.Note&method=get&version=3&object_id=NOTE_ID&_sid=SID')
-ret = json.loads(ret)
-if ret['success']:
-  print(ret['data'])
-```
-
-这里显示的是NoteStation获取某一篇笔记详细信息的API，由于NoteStation没有API文档，只能通过浏览器的请求来分析得到，比如创建笔记的参数：
+您需要从[此链接](https://github.com/SynologyOpenSource/pkgscripts-ng/tree/DSM7.2)克隆前端脚本。从现在开始，我们将在本文档中使用 `/toolkit` 作为工具包基础。
 
 ```bash
-POST /webapi/entry.cgi HTTP/1.1
-
-commit_msg: {"device":"desktop","listable":false}
-title: "无标题便签"
-parent_id: "1001_ABCDEFGHIJKLMNPQRSTUVW"
-encrypt: false
-api: SYNO.NoteStation.Note
-method: create
-version: 3
+apt-get install git
+mkdir -p /toolkit
+cd /toolkit
+git clone https://github.com/SynologyOpenSource/pkgscripts-ng
 ```
 
-用户登出
+然后，您需要安装一些工具来使构建的工具正常工作：
 
-```py
-import json
-import requests
-ret = requests.get('http://myds.com:port/webapi/auth.cgi?api=SYNO.API.Auth&version=1&method=logout&session=FileStation')
-ret = json.loads(ret)
-if ret['success']:
-  print('Logout OK.')
+```bash
+apt-get install cifs-utils \
+    python \
+    python-pip \
+    python3 \
+    python3-pip
 ```
-经过一番努力，顺利利用API获取、创建NoteStation的文章，可以方便的扩展功能了。在使用API的过程中，也发现了很多奇怪的问题，比如创建Note时，Title不能为纯数字，会导致API返回失败，群晖加油，希望可以对开发者提供更完整的社区支持！
 
-# 开发者手册
+此时，您可以找到如下工具包文件：
 
-https://help.synology.cn/developer-guide/
+```bash
+/toolkit
+├── pkgscripts-ng/
+│   ├── include/
+│   ├── EnvDeploy    (deployment tool for chroot environment)
+│   └── PkgCreate.py (build tool for package)
+└── build_env/       (directory to store chroot environments)
+```
+
+### 为不同的 NAS 目标部署 Chroot 环境
+
+为了加快开发速度，我们准备了几个不同架构的构建环境，其中包含一些预构建的项目，其可执行二进制文件或共享库是在 DSM 中构建的，例如 zlib、libxml2 等。
+
+您可以使用 EnvDeploy 部署 NAS 的相应环境。例如，如果 avoton 架构中有一个 NAS，可以使用以下命令为 avoton 部署环境：
+
+```bash
+cd /toolkit/pkgscripts-ng/
+git checkout DSM7.2
+./EnvDeploy -v 7.2 -p avoton # for DSM7.2.2
+```
+
+可以手动下载环境压缩包。你必须把 `base_env-{version}.txz`， `ds.{platform}-{version}.dev.txz` 和 `ds.{platform}-{version}.env.txz` 到 `toolkit/toolkit_tarballs` 中。
+
+```bash
+/toolkit
+├── pkgscripts-ng/
+└── toolkit_tarballs/
+    ├── base_env-7.2.txz
+    ├── ds.avoton-7.2.dev.txz
+    └── ds.avoton-7.2.env.txz
+```
+
+
+
+```bash
+cd /toolkit/pkgscripts-ng/
+./EnvDeploy -v 7.2 -p avoton -D # -D implies no download
+```
+
+如前所述，部署的环境包含一些预构建的库和标头，可以在 cross gcc sysroot 下找到。Sysroot 是编译器的默认搜索路径。如果 gcc 无法从给定路径中找到标头或库，它将搜索 sysroot/usr/{lib，include}。
+
+```bash
+/toolkit
+├── pkgscripts-ng/
+│   ├── include/
+│   ├── EnvDeploy
+│   └── PkgCreate.py
+└── build_env/
+    ├── ds.avoton-7.2/
+    └── ds.avoton-6.2/
+        └── usr/local/x86_64-pc-linux-gnu/x86_64-pc-linux-gnu/sys-root/
+```
+
+### 可用平台
+
+您可以使用以下命令之一来显示可用平台。如果未给出 -v，则将列出所有版本的可用平台。
+
+```bash
+./EnvDeploy -v 7.2 --list
+./EnvDeploy -v 7.2 --info platform
+```
+
+您可以使用属于同一平台系列的任何工具包为同一平台系列中的所有平台创建 spk。例如，您可以使用 Toolkit for Braswell 在所有x86_64兼容平台上创建包运行。对于平台系列，请查看平台和拱形值映射表。
+
+### 更新环境
+
+再次使用 EnvDeploy 更新环境。例如，您可以按如下方式更新 DSM 7.2.2 的 avoton 。
+
+```bash
+./EnvDeploy -v 7.2 -p avoton
+```
+
+### 移除环境
+
+要删除环境，您首先需要卸载 /proc 文件夹，然后删除环境文件夹。以下命令说明了如何删除具有 7.2 版和平台 avoton 的环境。
+
+```bash
+umount /toolkit/build_env/ds.avoton-7.2/proc
+rm -rf /toolkit/build_env/ds.avoton-7.2
+```
