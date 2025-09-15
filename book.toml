@@ -1,0 +1,5 @@
+[book]
+authors = ["caoyang2002"]
+language = "zh"
+src = "src"
+title = "DSM7 群晖套件开发手册"

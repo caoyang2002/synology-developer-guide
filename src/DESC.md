@@ -1,3 +1,5 @@
+# 介绍
+
 # 群晖API开发初探
 
 群晖的DSM系统功能强大，又是私有化部署，是非常好的家庭共享存储或小型公司的小型存储方案。群晖的套件众多，比如PhotoStation、Moments、FileStation、DownloadStation、CloudSync、NoteStation等有很多的教程，但其实DSM系统的API功能也非常强大，这里初探一下使用方法。
@@ -75,4 +77,3 @@ if ret['success']:
 # 开发者手册
 
 https://help.synology.cn/developer-guide/
-
